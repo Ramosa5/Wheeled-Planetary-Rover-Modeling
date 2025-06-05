@@ -49,10 +49,10 @@ sensors = [Sensor() for _ in range(4)]
 rover = Rover(wheels, suspension, controller, dynamic_model, terrain_model, sensors, n_dof)
 simulator = Simulator(rover, n_dof)
 
-# Run sim
+# Run simulation
 sol = simulator.runSimulation()
 
-# Plot results
+# Plot Rover Position Over Time
 plt.figure(figsize=(10, 4))
 plt.plot(sol.t, sol.y[0], label='x position')
 plt.plot(sol.t, sol.y[1], label='y position')
@@ -65,18 +65,73 @@ plt.grid()
 plt.tight_layout()
 plt.show()
 
-# 3D Plot
+# 3D Trajectory Plot with Terrain
 fig = plt.figure(figsize=(10, 6))
 ax = fig.add_subplot(111, projection='3d')
+
+# Rover Trajectory Data
 x_vals = sol.y[0]
 y_vals = sol.y[1]
 z_vals = sol.y[2]
 
+# Plot Rover Trajectory
 ax.plot(x_vals, y_vals, z_vals, label='Rover Trajectory', color='blue')
-ax.set_title('Rover 3D Trajectory')
+
+# Add terrain data
+terrain_x = np.linspace(min(x_vals), max(x_vals), 100)
+terrain_y = np.linspace(min(y_vals), max(y_vals), 100)
+terrain_X, terrain_Y = np.meshgrid(terrain_x, terrain_y)
+
+# Calculate the surface height of the terrain at each point
+terrain_Z = terrain_model.getSurfaceHeight(terrain_X, terrain_Y)
+
+# Plot the terrain surface
+ax.plot_surface(terrain_X, terrain_Y, terrain_Z, cmap='YlGnBu', alpha=0.5, rstride=10, cstride=10)
+
+# Set the labels and title
+ax.set_title('Rover 3D Trajectory with Terrain')
 ax.set_xlabel('X [m]')
 ax.set_ylabel('Y [m]')
 ax.set_zlabel('Z [m]')
 ax.legend()
+plt.tight_layout()
+plt.show()
+
+# Velocity Over Time
+plt.figure(figsize=(10, 4))
+velocity = np.linalg.norm(sol.y[3:6], axis=0)  # Prędkość całkowita (magnitude of velocity vector)
+plt.plot(sol.t, velocity, label='Total velocity')
+plt.xlabel('Time [s]')
+plt.ylabel('Velocity [m/s]')
+plt.title('Rover Velocity Over Time')
+plt.legend()
+plt.grid()
+plt.tight_layout()
+plt.show()
+
+# Motor Torques Over Time (left and right wheels)
+plt.figure(figsize=(10, 4))
+M_left = np.clip(controller.calculateControlInput(sol.y[3])[0], -motor_max_torque, motor_max_torque)
+M_right = np.clip(controller.calculateControlInput(sol.y[3])[1], -motor_max_torque, motor_max_torque)
+plt.plot(sol.t, M_left, label='Left motor torque')
+plt.plot(sol.t, M_right, label='Right motor torque')
+plt.xlabel('Time [s]')
+plt.ylabel('Torque [Nm]')
+plt.title('Motor Torques Over Time')
+plt.legend()
+plt.grid()
+plt.tight_layout()
+plt.show()
+
+# Spring Displacements Over Time (showing displacement for each wheel)
+plt.figure(figsize=(10, 4))
+for i in range(n_wheels):
+    spring_disp = sol.y[6 + i] - spring_rest_length
+    plt.plot(sol.t, spring_disp, label=f'Spring {i+1} displacement')
+plt.xlabel('Time [s]')
+plt.ylabel('Spring Displacement [m]')
+plt.title('Spring Displacements Over Time')
+plt.legend()
+plt.grid()
 plt.tight_layout()
 plt.show()
