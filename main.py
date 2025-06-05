@@ -77,15 +77,15 @@ z_vals = sol.y[2]
 # Plot Rover Trajectory
 ax.plot(x_vals, y_vals, z_vals, label='Rover Trajectory', color='blue')
 
-# Add terrain data
+# Generowanie siatki terenu
 terrain_x = np.linspace(min(x_vals), max(x_vals), 100)
 terrain_y = np.linspace(min(y_vals), max(y_vals), 100)
 terrain_X, terrain_Y = np.meshgrid(terrain_x, terrain_y)
 
-# Calculate the surface height of the terrain at each point
-terrain_Z = terrain_model.getSurfaceHeight(terrain_X, terrain_Y)
+# Użycie np.vectorize do utworzenia macierzy wysokości terenu
+terrain_Z = np.vectorize(terrain_model.getSurfaceHeight)(terrain_X, terrain_Y)
 
-# Plot the terrain surface
+# Plotowanie powierzchni terenu
 ax.plot_surface(terrain_X, terrain_Y, terrain_Z, cmap='YlGnBu', alpha=0.5, rstride=10, cstride=10)
 
 # Set the labels and title

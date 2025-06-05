@@ -11,5 +11,5 @@ class Simulator:
         state0 = np.concatenate((x0, x_dot0))
         t_span = (0, 20)
         t_eval = np.linspace(t_span[0], t_span[1], 10000)
-        sol = solve_ivp(lambda t, y: self.rover.simulateStep(y), t_span, state0, t_eval=t_eval)
+        sol = solve_ivp(lambda t, y: self.rover.simulateStep(y, t), t_span, state0, t_eval=t_eval)
         return sol

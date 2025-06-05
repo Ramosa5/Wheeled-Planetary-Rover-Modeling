@@ -1,5 +1,5 @@
 import numpy as np
-
+import csv
 
 class DynamicModel:
     def __init__(self, terrain, n_dof, m_body, g, n_wheels, wheel_pos_body, wheel_radius, kw, cw, cd, mu_x_max,
@@ -19,6 +19,10 @@ class DynamicModel:
         self.spring_rest_length = spring_rest_length
         self.m_wheel = m_wheel
         self.J_body = J_body
+
+        # Initialize CSV logging
+        self.log_file = 'forces_log.csv'
+        self.init_csv_log()
 
     def rotation_matrix(self, yaw, roll, pitch):
         R1 = np.array([[np.cos(yaw), -np.sin(yaw), 0],
@@ -145,16 +149,37 @@ class DynamicModel:
 
         return q_ddot
 
-    def computeForces(self, q, q_dot, wheels, suspension, controller):
+    def init_csv_log(self):
+        """Initialize CSV log file with headers."""
+        with open(self.log_file, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            # Write header row
+            writer.writerow(["Time", "F_gravity", "F_spring", "F_normal", "F_friction", "F_suspension"])
+
+    def log_forces(self, time, F_gravity, F_spring, F_normal, F_friction, F_suspension):
+        """Log forces to CSV."""
+        with open(self.log_file, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([time, F_gravity, F_spring, F_normal, F_friction, F_suspension])
+
+    def computeForces(self, q, q_dot, wheels, suspension, controller, time):
         F = np.zeros(self.n_dof)
-        F[2] -= self.m_body * self.g
+        F[2] -= self.m_body * self.g  # Gravity force on the rover
+
+        # Initialize force counters
+        total_F_spring = 0
+        total_F_normal = 0
+        total_F_friction = 0
+        total_F_suspension = 0
+
         v_x = self.body_frame_velocity(q_dot, q[3], q[4], q[5])
         M_left, M_right = controller.calculateControlInput(v_x)
         F_gen = np.zeros(self.n_dof)
 
-        # Oblicz dynamiczną macierz masy w zależności od stanu (q)
+        # Mass matrix
         M = self.computeMassMatrix(q)
 
+        # Loop over all wheels to compute forces
         for i in range(self.n_wheels):
             Mw = M_left if i % 2 == 0 else M_right
             yaw, roll, pitch = q[3:6]
@@ -168,8 +193,11 @@ class DynamicModel:
             v_wheel = R.T @ v_global
             vertical_velocity = -v_global[2]
             Fn = self.kw * penetration + self.cw * vertical_velocity if penetration > 0 else 0.0
+
+            total_F_normal += Fn  # Sum of normal forces
             F_x_max = self.mu_x_max * Fn
             Fx = np.clip(Mw / self.wheel_radius, -F_x_max, F_x_max)
+            total_F_friction += Fx  # Sum of friction forces
             eps = 1e-2
             slip_angle = np.arctan2(v_wheel[1], abs(v_wheel[0]) + eps)
             Fy = np.clip(-self.cd * slip_angle, -self.mu_y_max * Fn, self.mu_y_max * Fn)
@@ -183,6 +211,10 @@ class DynamicModel:
             disp = q[6 + i] - self.spring_rest_length
             vel = q_dot[6 + i]
             F_gen[6 + i] += suspension.calculateForce(disp, vel) - self.m_wheel * self.g
+            total_F_spring += suspension.calculateForce(disp, vel)  # Sum of suspension forces
+
+        # Log the forces at each time step
+        self.log_forces(time, F[2], total_F_spring, total_F_normal, total_F_friction, total_F_suspension)
 
         q_ddot = np.linalg.solve(M, F + F_gen)
         return np.concatenate((q_dot, q_ddot))
